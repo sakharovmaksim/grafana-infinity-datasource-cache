@@ -164,6 +164,8 @@ A source can be defined by the environment alone: `SOURCES=osv OSV_URL=https://a
 
 ## Metrics
 
+A ready Grafana dashboard is in [dashboards/](dashboards/README.md).
+
 All are `datasource_cache_*` with labels from fixed sets; per-key series are capped by `METRICS_ENTRY_LIMIT`. Key state
 is computed every `CACHE_REFRESH_INTERVAL` from the shared store and is the same on all replicas — aggregate it with
 `max by (source)`; counters are per replica — use `sum`. Scrapes do not touch Redis.
