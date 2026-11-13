@@ -1,0 +1,20 @@
+{{- with .Values.podDisruptionBudget }}
+{{- if .enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "gidc.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gidc.labels" $ | nindent 4 }}
+spec:
+  {{- if not (kindIs "invalid" .minAvailable) }}
+  minAvailable: {{ .minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "gidc.selectorLabels" $ | nindent 6 }}
+{{- end }}
+{{- end }}

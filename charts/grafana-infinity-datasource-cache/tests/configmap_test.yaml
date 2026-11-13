@@ -1,0 +1,37 @@
+suite: configmap
+templates:
+  - configmap.yaml
+tests:
+  - it: renders the config as YAML
+    values:
+      - ../ci/default-values.yaml
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: "(?m)^  endoflife:\n    paths:\n    - /api/\n    url: https://endoflife.date"
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: "(?m)^log:\n  format: json"
+
+  - it: keeps ${VAR} for the service to substitute
+    set:
+      config.sources.nvd.url: https://services.nvd.nist.gov
+      config.sources.nvd.auth.value: ${NVD_API_KEY}
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: "value: \\$\\{NVD_API_KEY\\}"
+
+  - it: fails without sources
+    asserts:
+      - failedTemplate:
+          errorPattern: "config.sources: define at least one source"
+
+  - it: accepts sources defined only in env
+    set:
+      extraEnv:
+        - {name: SOURCES, value: osv}
+        - {name: OSV_URL, value: https://api.osv.dev}
+    asserts:
+      - hasDocuments:
+          count: 1

@@ -1,0 +1,7 @@
+# Local Redis for `make run-redis`.
+services:
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"

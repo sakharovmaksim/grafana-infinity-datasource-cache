@@ -1,0 +1,12 @@
+{{- $base := printf "http://%s.%s.svc.cluster.local" (include "gidc.fullname" .) .Release.Namespace }}
+{{- if ne (int .Values.service.port) 80 }}{{ $base = printf "%s:%d" $base (int .Values.service.port) }}{{ end }}
+Grafana Infinity datasource URLs, one per source (add the host to the datasource's allowed hosts):
+{{- range $name, $_ := .Values.config.sources }}
+  {{ $base }}/{{ $name }}
+{{- else }}
+  {{ $base }}/<source>
+{{- end }}
+
+Cache state:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "gidc.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -s localhost:8080/-/entries

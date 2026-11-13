@@ -1,0 +1,10 @@
+/grafana-infinity-datasource-cache
+/coverage.*
+/__debug_bin*
+.env
+/config.yml
+.zed
+.idea
+.vscode
+.DS_Store
+*.tgz

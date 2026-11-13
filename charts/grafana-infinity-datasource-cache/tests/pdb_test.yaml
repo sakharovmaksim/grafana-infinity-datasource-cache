@@ -1,0 +1,30 @@
+suite: pod disruption budget
+templates:
+  - pdb.yaml
+values:
+  - ../ci/default-values.yaml
+tests:
+  - it: allows one unavailable pod by default
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - notExists:
+          path: spec.minAvailable
+
+  - it: prefers minAvailable when set
+    set:
+      podDisruptionBudget.minAvailable: 1
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - notExists:
+          path: spec.maxUnavailable
+
+  - it: can be disabled
+    set:
+      podDisruptionBudget.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
