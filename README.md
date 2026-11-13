@@ -30,6 +30,12 @@ curl -si 'localhost:8080/cvedb/cves?product=nginx&limit=10' | grep X-Cache   # M
 curl -s localhost:8080/-/entries
 ```
 
+Redis is optional: if `redis.addr` is omitted or empty and `REDIS_ADDR` is unset, the service starts with an in-memory
+store and logs a warning. At least one source must be configured in either mode. With one replica, the in-memory
+store supports caching, background refresh and stale responses; cached data is lost on restart. Multiple replicas
+can also run without Redis, but each keeps and refreshes its own cache. Configure a shared Redis to share cached
+data and coordinate upstream fetches between replicas.
+
 Kubernetes — see the [chart](charts/grafana-infinity-datasource-cache/README.md):
 
 ```
@@ -65,8 +71,8 @@ helm install infinity-cache oci://ghcr.io/sakharovmaksim/charts/grafana-infinity
   and `flag` differs from `flag=`. The upstream receives the original query string. `Content-Type` is the only client
   header forwarded.
 
-**Replicas.** One replica fetches a key while the others wait for it in Redis; the lock is a 30 s lease renewed during
-the fetch. Replica memory is reconciled with Redis in the background every `local_check`.
+**Replicas.** With Redis, one replica fetches a key while the others wait for it in Redis; the lock is a 30 s lease
+renewed during the fetch. Replica memory is reconciled with Redis in the background every `local_check`.
 
 **Isolation.** A slow key does not delay others (`concurrency`), a slow source does not delay other sources (each has
 its own `max_in_flight` slots). Exceptions: cold requests to a hung source can take all its slots, and its background
