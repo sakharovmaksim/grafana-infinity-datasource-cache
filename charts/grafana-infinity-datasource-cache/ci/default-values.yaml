@@ -1,0 +1,7 @@
+config:
+  sources:
+    endoflife:
+      url: https://endoflife.date
+      paths: [/api/]
+      warmup:
+        - /api/go.json

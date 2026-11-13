@@ -1,0 +1,20 @@
+apiVersion: v2
+name: grafana-infinity-datasource-cache
+description: Caching proxy for slow and unstable HTTP sources of the Grafana Infinity datasource
+type: application
+# Both are overwritten from the release tag (vX.Y.Z) when the chart is published.
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.23.0-0"
+home: https://github.com/sakharovmaksim/grafana-infinity-datasource-cache
+sources:
+  - https://github.com/sakharovmaksim/grafana-infinity-datasource-cache
+keywords:
+  - grafana
+  - infinity
+  - cache
+  - proxy
+  - redis
+maintainers:
+  - name: sakharovmaksim
+    url: https://github.com/sakharovmaksim

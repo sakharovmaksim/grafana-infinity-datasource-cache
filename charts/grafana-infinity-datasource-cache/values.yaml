@@ -1,0 +1,136 @@
+# More than one replica needs Redis (config.redis.addr): replicas then share cached data and fetch each key once.
+# Source rate limits apply per replica, so scaling multiplies the load on upstreams.
+replicaCount: 1
+
+image:
+  repository: docker.io/sakharovmaksim/grafana-infinity-datasource-cache
+  # Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service configuration in the format of config.example.yml, mounted as a file. At least one source is required.
+# Environment variables (extraEnv) override it; ${VAR} in values is replaced from the environment, which is the
+# way to pass secrets. The service listens on :8080, do not change `listen`.
+config:
+  log:
+    format: json
+  # redis:
+  #   addr: redis-master.redis.svc.cluster.local:6379
+  #   password: ${REDIS_PASSWORD}
+  sources: {}
+  #   osv:
+  #     url: https://api.osv.dev
+  #     paths: [/v1/query, /v1/querybatch]
+  #     methods: [POST]
+  #   nvd:
+  #     url: https://services.nvd.nist.gov
+  #     paths: [/rest/json/]
+  #     timeout: 3m
+  #     rate: 25/30s
+  #     auth:
+  #       header: apiKey
+  #       value: ${NVD_API_KEY}
+  #     warmup:
+  #       - /rest/json/cves/2.0?virtualMatchString=cpe:2.3:a:golang:go&noRejected=&resultsPerPage=2000
+
+# Soft memory limit for the Go runtime. Keep it at ~80% of resources.limits.memory; empty disables.
+goMemLimit: 200MiB
+
+extraEnv: []
+# - name: NVD_API_KEY
+#   valueFrom:
+#     secretKeyRef:
+#       name: nvd-api-key
+#       key: api-key
+extraEnvFrom: []
+# Mount a secret file for sources.<name>.auth.value_file: it is re-read on every request, so a rotated key
+# is picked up without a restart.
+extraVolumes: []
+extraVolumeMounts: []
+
+service:
+  type: ClusterIP
+  # Port 80 keeps datasource URLs short: http://<fullname>.<namespace>.svc.cluster.local/<source>
+  port: 80
+  annotations: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # The service does not call the Kubernetes API.
+  automount: false
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# Each cached key holds a gzipped copy in replica memory (cache.local_max_bytes, 64MiB by default).
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# /healthz does not depend on Redis or upstreams: without them the service still serves its memory copies.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+
+terminationGracePeriodSeconds: 30
+
+# With maxUnavailable 1 a single replica never blocks node drains. minAvailable takes precedence when set.
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+  minAvailable: ~
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+# Prometheus Operator ServiceMonitor for /metrics.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: ""
+  labels: {}
+  relabelings: []
+  metricRelabelings: []
+
+# The service adds upstream API keys to requests, so anyone who can reach it uses those keys. Restrict ingress
+# to Grafana and the metrics scraper.
+networkPolicy:
+  enabled: false
+  from: []
+  # - namespaceSelector:
+  #     matchLabels:
+  #       kubernetes.io/metadata.name: grafana
+  #   podSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: grafana

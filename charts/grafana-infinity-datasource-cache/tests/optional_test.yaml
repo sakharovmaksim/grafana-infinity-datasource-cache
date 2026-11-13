@@ -1,0 +1,56 @@
+suite: optional resources
+templates:
+  - servicemonitor.yaml
+  - networkpolicy.yaml
+  - service.yaml
+values:
+  - ../ci/default-values.yaml
+tests:
+  - it: renders no ServiceMonitor by default
+    template: servicemonitor.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: scrapes /metrics through the http port
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.enabled: true
+      serviceMonitor.labels.release: prometheus
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: metadata.labels.release
+          value: prometheus
+
+  - it: requires peers for the NetworkPolicy
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "networkPolicy.from: list the peers"
+
+  - it: allows only the listed peers
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: grafana}
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: grafana
+
+  - it: exposes port 80 by default
+    template: service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 80

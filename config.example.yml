@@ -1,0 +1,71 @@
+# grafana-infinity-datasource-cache: example configuration with public CVE sources.
+# Precedence: built-in defaults < this file < environment variables (see README). Unknown keys fail the start.
+# ${VAR} in values is replaced from the environment; an undefined variable fails the start.
+
+listen: ":8080"
+log:
+  level: info
+  format: text        # json for log collectors
+
+redis:
+  addr: ""            # empty: in-process store, no sharing between replicas
+  db: 0
+  key_prefix: "datasource-cache:"
+  # password: ${REDIS_PASSWORD}
+  # password_file: /etc/grafana-infinity-datasource-cache/redis/password
+
+cache:
+  ttl: 1h             # younger data is served without a refresh
+  max_stale: 2d       # older data is not served, clients get 502: Infinity does not show the data age
+  idle_ttl: 24h       # keys not requested for this long stop being refreshed and are deleted
+  refresh_interval: 1m
+  error_backoff: 1m
+  miss_wait: 50s      # below the Infinity timeout (60s by default), otherwise the client gives up before the 504
+  local_check: 10s
+  # Every distinct URL is a key: replica memory, Redis space and an upstream request every ttl for idle_ttl.
+  # A URL with ${__from} changes on every dashboard refresh, so both limits matter.
+  max_keys: 200          # per source, warmup excluded; new keys above it bypass the cache (X-Cache: BYPASS)
+  local_max_bytes: 64MiB # gzipped copies in replica memory; least recently read ones are evicted and re-read from Redis
+
+upstream:             # defaults for all sources
+  timeout: 2m         # per attempt
+  max_body: 64MiB
+  max_in_flight: 8    # concurrent upstream requests per replica; every source has its own slots
+
+metrics:
+  entry_limit: 200
+
+# The key is the source name: the /<name>/… path prefix and the <NAME>_… environment prefix.
+sources:
+  # Shodan CVEDB, no key. It drops connections now and then; retries absorb that.
+  cvedb:
+    url: https://cvedb.shodan.io
+    paths: [/cves, /cve/, /cpes]
+    timeout: 1m
+    rate: 1/1s
+    # max_keys: 200     # defaults to cache.max_keys
+    warmup:
+      - /cves?product=go&limit=1000
+
+  # NVD allows 5 requests per 30s without a key and 50 with one, per key; the limit here is per replica.
+  # Large feeds take minutes.
+  nvd:
+    url: https://services.nvd.nist.gov
+    paths: [/rest/json/]
+    timeout: 3m
+    miss_wait: 170s   # keep it below the timeout of the Infinity datasource that queries NVD
+    rate: 5/30s
+    # auth:
+    #   header: apiKey
+    #   value: ${NVD_API_KEY}
+    #   value_file: /etc/grafana-infinity-datasource-cache/nvd/api-key   # re-read on every request
+    # Infinity sends a valueless flag as `noRejected=`, and `noRejected` is a different cache key.
+    warmup:
+      - /rest/json/cves/2.0?virtualMatchString=cpe:2.3:a:golang:go&noRejected=&resultsPerPage=2000
+
+  # Any other HTTP source works the same way, e.g. OSV (POST, the body is part of the cache key):
+  # osv:
+  #   url: https://api.osv.dev
+  #   paths: [/v1/query, /v1/querybatch]
+  #   methods: [POST]
+  #   ttl: 1d

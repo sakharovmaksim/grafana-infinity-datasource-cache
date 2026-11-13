@@ -1,0 +1,77 @@
+suite: deployment
+templates:
+  - deployment.yaml
+  - configmap.yaml
+values:
+  - ../ci/default-values.yaml
+tests:
+  - it: uses the app version as the image tag
+    template: deployment.yaml
+    chart:
+      appVersion: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/sakharovmaksim/grafana-infinity-datasource-cache:1.2.3
+
+  - it: strips the v prefix from an explicit tag
+    template: deployment.yaml
+    set:
+      image.tag: v2.0.0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/sakharovmaksim/grafana-infinity-datasource-cache:2.0.0
+
+  - it: mounts the config and passes its path
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: [-config, /etc/grafana-infinity-datasource-cache/config.yml]
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME-grafana-infinity-datasource-cache
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: sets GOMEMLIMIT and appends extra env
+    template: deployment.yaml
+    set:
+      extraEnv:
+        - name: NVD_API_KEY
+          valueFrom:
+            secretKeyRef: {name: nvd, key: api-key}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: GOMEMLIMIT
+              value: 200MiB
+            - name: NVD_API_KEY
+              valueFrom:
+                secretKeyRef: {name: nvd, key: api-key}
+
+  - it: omits env when there is nothing to set
+    template: deployment.yaml
+    set:
+      goMemLimit: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+
+  - it: runs as non-root with a read-only root filesystem
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
